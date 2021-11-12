@@ -393,7 +393,7 @@ function choose_linux_version() {
 	echo_ "Choose linux version:"
 	# FIXME
 	if [ "$UBOOT" == "mainline" ]; then
-		SUPPORTED_LINUX=("mainline")
+		SUPPORTED_LINUX=("mainline" "evl")
 	else
 		if [ "$KHADAS_BOARD" != "Generic" ]; then
 			SUPPORTED_LINUX=(`echo ${SUPPORTED_LINUX[@]} | sed s/mainline//g`)

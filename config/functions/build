@@ -87,6 +87,12 @@ build_uboot() {
 ## Build Linux
 build_linux() {
 	ret=0
+	if [ "$LINUX" == "evl" ]; then
+		rm -rf $BUILD/.stamps/linux-mainline-evt/
+		build_package "linux-mainline-evl:target"
+
+		return 0
+	fi
 
 	if [ "$LINUX" == "mainline" ]; then
 		rm -rf $BUILD/.stamps/linux-mainline/
@@ -209,7 +215,7 @@ build_uboot_deb() {
 
 	# For amlogic platform, we need to update the dtb for u-boot
 	# Only for vendor u-boot & kernel
-	if [ "$VENDOR" == "Amlogic" ] && [ "$LINUX" != "mainline" ]; then
+	if [ "$VENDOR" == "Amlogic" ] && [ "$LINUX" != "mainline" ] && [ "$LINUX" != "evl" ]; then
 		cp "$LINUX_DIR/$LINUX_DTB" "$pkgdir"/usr/lib/u-boot/dtb.img
 	fi
 
@@ -350,7 +356,11 @@ config_linux() {
 	if [ "$LINUX" == "mainline" ]; then
 		cp $PKGS_DIR/linux-mainline/configs/${KHADAS_BOARD}.config "$LINUX_DIR"/.config
 	else
+	    if [ "$LINUX" == "evl" ]; then
+		cp $PKGS_DIR/linux-mainline-evl/configs/${KHADAS_BOARD}.config "$LINUX_DIR"/.config
+	    else 
 		make ARCH=arm64 $LINUX_DEFCONFIG -C"$LINUX_DIR"
+	    fi
 	fi
 
 	make ARCH=arm64 CROSS_COMPILE=${KERNEL_COMPILER} menuconfig -C"$LINUX_DIR"
@@ -369,7 +379,11 @@ save_linux_config() {
 	if [ "$LINUX" == "mainline" ]; then
 		cp "$LINUX_DIR"/.config $PKGS_DIR/linux-mainline/configs/${KHADAS_BOARD}.config
 	else
+	    if [ "$LINUX" == "evl" ]; then
+		    cp "$LINUX_DIR"/.config $PKGS_DIR/linux-mainline-evl/configs/${KHADAS_BOARD}.config
+	    else
 		make ARCH=arm64 CROSS_COMPILE=${KERNEL_COMPILER} savedefconfig -C"$LINUX_DIR"
 		mv "$LINUX_DIR"/defconfig "$LINUX_DIR"/arch/arm64/configs/$LINUX_DEFCONFIG
+	    fi
 	fi
 }
