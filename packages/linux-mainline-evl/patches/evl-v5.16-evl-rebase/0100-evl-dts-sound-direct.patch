@@ -1,0 +1,473 @@
+diff -ruN a/arch/arm64/boot/dts/amlogic/Makefile b/arch/arm64/boot/dts/amlogic/Makefile
+--- a/arch/arm64/boot/dts/amlogic/Makefile	2022-01-30 18:19:00.000000000 +0300
++++ b/arch/arm64/boot/dts/amlogic/Makefile	2021-12-28 18:35:35.521242938 +0300
+@@ -53,6 +50,7 @@
+ dtb-$(CONFIG_ARCH_MESON) += meson-gxm-wetek-core2.dtb
+ dtb-$(CONFIG_ARCH_MESON) += meson-sm1-bananapi-m5.dtb
+ dtb-$(CONFIG_ARCH_MESON) += meson-sm1-khadas-vim3l.dtb
++dtb-$(CONFIG_ARCH_MESON) += meson-sm1-khadas-vim3l-evl.dtb
+ dtb-$(CONFIG_ARCH_MESON) += meson-sm1-odroid-c4.dtb
+ dtb-$(CONFIG_ARCH_MESON) += meson-sm1-odroid-hc4.dtb
+ dtb-$(CONFIG_ARCH_MESON) += meson-sm1-sei610.dtb
+diff -ruN a/arch/arm64/boot/dts/amlogic/meson-g12-common.dtsi b/arch/arm64/boot/dts/amlogic/meson-g12-common.dtsi
+--- a/arch/arm64/boot/dts/amlogic/meson-g12-common.dtsi	2022-02-10 17:36:10.968056105 +0300
++++ b/arch/arm64/boot/dts/amlogic/meson-g12-common.dtsi	2022-01-10 22:10:33.591469512 +0300
+@@ -1690,9 +1691,28 @@
+ 								       <250000000>,
+ 								       <0>; /* Do Nothing */
+ 					};
++
++					mipi_analog_dphy: phy {
++						compatible = "amlogic,g12a-mipi-dphy-analog";
++						#phy-cells = <0>;
++						status = "disabled";
++					};
+ 				};
+ 			};
+ 
++			mipi_dphy: phy@44000 {
++				compatible = "amlogic,axg-mipi-dphy";
++				reg = <0x0 0x44000 0x0 0x2000>;
++				clocks = <&clkc CLKID_MIPI_DSI_PHY>;
++				clock-names = "pclk";
++				resets = <&reset RESET_MIPI_DSI_PHY>;
++				reset-names = "phy";
++				phys = <&mipi_analog_dphy>;
++				phy-names = "analog";
++				#phy-cells = <0>;
++				status = "disabled";
++			};
++
+ 			usb3_pcie_phy: phy@46000 {
+ 				compatible = "amlogic,g12a-usb3-pcie-phy";
+ 				reg = <0x0 0x46000 0x0 0x2000>;
+@@ -2150,6 +2170,15 @@
+ 					remote-endpoint = <&hdmi_tx_in>;
+ 				};
+ 			};
++
++			/* DPI output port */
++			dpi_port: port@2 {
++				reg = <2>;
++
++				dpi_out: endpoint {
++					remote-endpoint = <&mipi_dsi_in>;
++				};
++			};
+ 		};
+ 
+ 		gic: interrupt-controller@ffc01000 {
+@@ -2187,6 +2216,43 @@
+ 				amlogic,channel-interrupts = <64 65 66 67 68 69 70 71>;
+ 			};
+ 
++			mipi_dsi: mipi-dsi@7000 {
++				compatible = "amlogic,meson-g12a-dw-mipi-dsi";
++				reg = <0x0 0x7000 0x0 0x1000>;
++				resets = <&reset RESET_MIPI_DSI_HOST>;
++				reset-names = "top";
++				clocks = <&clkc CLKID_MIPI_DSI_HOST>,
++				       	 <&clkc CLKID_MIPI_DSI_PXCLK>;
++				clock-names = "pclk", "px_clk";
++				phys = <&mipi_dphy>;
++				phy-names = "dphy";
++				#address-cells = <1>;
++				#size-cells = <0>;
++				status = "disabled";
++
++				assigned-clocks = <&clkc CLKID_MIPI_DSI_PXCLK_SEL>;
++				assigned-clock-parents = <&clkc CLKID_GP0_PLL>;
++
++				ports {
++					#address-cells = <1>;
++					#size-cells = <0>;
++
++					/* VPU VENC Input */
++					mipi_dsi_venc_port: port@0 {
++						reg = <0>;
++
++						mipi_dsi_in: endpoint {
++							remote-endpoint = <&dpi_out>;
++						};
++					};
++
++					/* DSI Output */
++					mipi_dsi_panel_port: port@1 {
++						reg = <1>;
++					};
++				};
++			};
++
+ 			watchdog: watchdog@f0d0 {
+ 				compatible = "amlogic,meson-gxbb-wdt";
+ 				reg = <0x0 0xf0d0 0x0 0x10>;
+diff -ruN a/arch/arm64/boot/dts/amlogic/meson-khadas-vim3.dtsi b/arch/arm64/boot/dts/amlogic/meson-khadas-vim3.dtsi
+--- a/arch/arm64/boot/dts/amlogic/meson-khadas-vim3.dtsi	2022-02-10 17:36:11.058056104 +0300
++++ b/arch/arm64/boot/dts/amlogic/meson-khadas-vim3.dtsi	2021-12-28 19:17:01.141270353 +0300
+@@ -401,6 +368,23 @@
+ 	};
+ };
+ 
++&i2c3 {
++	status = "okay";
++	pinctrl-0 = <&i2c3_sda_a_pins>, <&i2c3_sck_a_pins>;
++	pinctrl-names = "default";
++
++	touch-controller@38 {
++		compatible = "edt,edt-ft5206";
++		reg = <0x38>;
++		interrupt-parent = <&gpio_intc>;
++		interrupts = <66 IRQ_TYPE_EDGE_FALLING>; /* GPIOA_5 */
++		reset-gpio = <&gpio_expander 6 GPIO_ACTIVE_LOW>;
++		touchscreen-size-x = <1080>;
++		touchscreen-size-y = <1920>;
++		status = "okay";
++	};
++};
++
+ &ir {
+ 	status = "okay";
+ 	pinctrl-0 = <&remote_input_ao_pins>;
+@@ -408,10 +392,61 @@
+ 	linux,rc-map-name = "rc-khadas";
+ };
+ 
++&mipi_dsi {
++	status = "okay";
++
++	assigned-clocks = <&clkc CLKID_GP0_PLL>,
++			  <&clkc CLKID_MIPI_DSI_PXCLK_SEL>,
++			  <&clkc CLKID_MIPI_DSI_PXCLK>;
++	assigned-clock-parents = <0>,
++				 <&clkc CLKID_GP0_PLL>,
++				 <0>;
++	assigned-clock-rates = <720000000>,
++			       <0>,
++			       <720000000>;
++
++	panel@0 {
++		compatible = "khadas,ts050";
++		reset-gpios = <&gpio_expander 0 GPIO_ACTIVE_LOW>;
++		enable-gpios = <&gpio_expander 1 GPIO_ACTIVE_HIGH>;
++		power-supply = <&vcc_3v3>;
++		backlight = <&panel_backlight>;
++		width-mm = <64>;
++		height-mm = <118>;
++		reg = <0>;
++
++		port {
++			mipi_in_panel: endpoint {
++				remote-endpoint = <&mipi_out_panel>;
++			};
++		};
++	};
++};
++
++&mipi_analog_dphy {
++	status = "okay";
++};
++
++&mipi_dphy {
++	status = "okay";
++};
++
++&mipi_dsi_panel_port {
++	mipi_out_panel: endpoint {
++		remote-endpoint = <&mipi_in_panel>;
++	};
++};
++
+ &pcie {
+ 	reset-gpios = <&gpio GPIOA_8 GPIO_ACTIVE_LOW>;
+ };
+ 
++&pwm_AO_cd {
++	status = "okay";
++        pinctrl-0 = <&pwm_ao_c_6_pins>;
++        pinctrl-names = "default";
++};
++
+ &pwm_ef {
+ 	status = "okay";
+ 	pinctrl-0 = <&pwm_e_pins>;
+diff -ruN a/arch/arm64/boot/dts/amlogic/meson-sm1-khadas-vim3l-evl.dts b/arch/arm64/boot/dts/amlogic/meson-sm1-khadas-vim3l-evl.dts
+--- a/arch/arm64/boot/dts/amlogic/meson-sm1-khadas-vim3l-evl.dts	1970-01-01 03:00:00.000000000 +0300
++++ b/arch/arm64/boot/dts/amlogic/meson-sm1-khadas-vim3l-evl.dts	2022-01-10 22:10:46.381469487 +0300
+@@ -0,0 +1,246 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++/*
++ * Copyright (c) 2019 BayLibre, SAS
++ * Author: Neil Armstrong <narmstrong@baylibre.com>
++ */
++
++/dts-v1/;
++
++#include "meson-sm1.dtsi"
++#include "meson-khadas-vim3.dtsi"
++#include <dt-bindings/sound/meson-g12a-tohdmitx.h>
++#include "../../../../../drivers/evl/sound/evl-amlogic/dt-bindings/amlogic,sm1-audio-clk.h"
++
++/ {
++	compatible = "khadas,vim3l", "amlogic,sm1";
++	model = "Khadas VIM3L";
++
++	vddcpu: regulator-vddcpu {
++		/*
++		 * Silergy SY8030DEC Regulator.
++		 */
++		compatible = "pwm-regulator";
++
++		regulator-name = "VDDCPU";
++		regulator-min-microvolt = <690000>;
++		regulator-max-microvolt = <1050000>;
++
++		vin-supply = <&vsys_3v3>;
++
++		pwms = <&pwm_AO_cd 1 1250 0>;
++		pwm-dutycycle-range = <100 0>;
++
++		regulator-boot-on;
++		regulator-always-on;
++	};
++
++	galcore {
++		compatible = "amlogic, galcore";
++		dev_name = "galcore";
++		status = "okay";
++		clocks = <&clkc CLKID_NNA_AXI_CLK>,
++		   	   <&clkc CLKID_NNA_CORE_CLK>;
++		clock-names = "cts_vipnanoq_axi_clk_composite",
++			"cts_vipnanoq_core_clk_composite";
++		interrupts = <0 186 4>;
++		interrupt-names = "galcore";
++		reg = <0x0 0xff100000 0x0 0x800
++			0x0 0xff000000 0x0 0x400000
++			0x0 0xff63c118 0x0 0x0
++			0x0 0xff63c11c 0x0 0x0
++			0x0 0xffd01088 0x0 0x0
++			0x0 0xff63c1c8 0x0 0x0
++			>;
++		reg-names = "NN_REG","NN_SRAM","NN_MEM0",
++			"NN_MEM1","NN_RESET","NN_CLK";
++		nn_power_version = <3>;
++		nn_efuse = <0xff63003c 0x20>;
++	};
++
++
++
++
++	sound: sound@0xFF660000 {
++		compatible = "amlogic,axg-sound-realtime";
++		status = "okay";
++		model = "VIM3L-Asio";
++		#address-cells = <2>;
++		#size-cells = <2>;
++		ranges;
++		clocks = <&clkaudio CLKID_AUDIO_MCLK_B
++				&clkaudio CLKID_AUDIO_MCLK_PAD0
++				&clkc CLKID_MPLL1
++				&clkc CLKID_MPLL0
++				&clkaudio CLKID_AUDIO_SPDIFOUT_A>;
++		clock-names = "mclk", "mclk_pad", "clk_srcpll",
++			"samesource_srcpll", "samesource_clk";
++		pinctrl-names = "tdm_pins";
++		pinctrl-0 = <&mclk0_a_pins &tdm_b_sclk_pins &tdm_b_fs_pins &tdm_b_dout0_pins &tdm_b_din1_pins &spdif_ao_out_pins>;
++
++		audio_controller: audio_controller {
++			reg = <0x0 0xFF660000 0x0 0x4000>;
++			#address-cells = <2>;
++			#size-cells = <2>;
++			ranges = <0x0 0x0 0x0 0xFF660000 0x0 0x4000>;
++		clkaudio: clocks {
++				compatible = "amlogic, sm1-audio-clocks";
++				#clock-cells = <1>;
++				reg = <0x0 0x0 0x0 0xb0>;
++			};
++		ddr_manager {
++				compatible = "amlogic, sm1-audio-ddr-manager";
++				interrupts = <
++					GIC_SPI 148 IRQ_TYPE_EDGE_RISING
++					GIC_SPI 149 IRQ_TYPE_EDGE_RISING
++					GIC_SPI 150 IRQ_TYPE_EDGE_RISING
++					GIC_SPI 49 IRQ_TYPE_EDGE_RISING
++					GIC_SPI 152 IRQ_TYPE_EDGE_RISING
++					GIC_SPI 153 IRQ_TYPE_EDGE_RISING
++					GIC_SPI 154 IRQ_TYPE_EDGE_RISING
++					GIC_SPI 50 IRQ_TYPE_EDGE_RISING
++				>;
++				interrupt-names =
++					"toddr_a", "toddr_b", "toddr_c",
++					"toddr_d",
++					"frddr_a", "frddr_b", "frddr_c",
++					"frddr_d";
++			};
++
++
++	};
++			aml_snd_iomap {
++		// compatible = "amlogic, snd-iomap";
++		status = "okay";
++		#address-cells=<2>;
++		#size-cells=<2>;
++		ranges;
++		pdm_bus {
++			reg = <0x0 0xFF661000 0x0 0x400>;
++		};
++		audiobus_base {
++			reg = <0x0 0xFF660000 0x0 0x1000>;
++		};
++		audiolocker_base {
++			reg = <0x0 0xFF661400 0x0 0x400>;
++		};
++		eqdrc_base {
++			reg = <0x0 0xFF662000 0x0 0x1000>;
++		};
++		reset_base {
++			reg = <0x0 0xFFD01000 0x0 0x1000>;
++		};
++		vad_base {
++			reg = <0x0 0xFF661800 0x0 0x400>;
++		};
++		earcrx_cdmc_base {
++			reg = <0x0 0xFF663800 0x0 0x30>;
++		};
++		earcrx_dmac_base {
++			reg = <0x0 0xFF663C00 0x0 0x20>;
++		};
++		earcrx_top_base {
++			reg = <0x0 0xFF663E00 0x0 0x10>;
++		};
++		};
++		};
++
++
++};
++
++
++
++&cpu0 {
++	cpu-supply = <&vddcpu>;
++	operating-points-v2 = <&cpu_opp_table>;
++	clocks = <&clkc CLKID_CPU_CLK>;
++	clock-latency = <50000>;
++};
++
++&cpu1 {
++	cpu-supply = <&vddcpu>;
++	operating-points-v2 = <&cpu_opp_table>;
++	clocks = <&clkc CLKID_CPU1_CLK>;
++	clock-latency = <50000>;
++};
++
++&cpu2 {
++	cpu-supply = <&vddcpu>;
++	operating-points-v2 = <&cpu_opp_table>;
++	clocks = <&clkc CLKID_CPU2_CLK>;
++	clock-latency = <50000>;
++};
++
++&cpu3 {
++	cpu-supply = <&vddcpu>;
++	operating-points-v2 = <&cpu_opp_table>;
++	clocks = <&clkc CLKID_CPU3_CLK>;
++	clock-latency = <50000>;
++};
++
++&pwm_AO_cd {
++	pinctrl-0 = <&pwm_ao_c_6_pins>,<&pwm_ao_d_e_pins>;
++	pinctrl-names = "default";
++	clocks = <&xtal>;
++	clock-names = "clkin1";
++	status = "okay";
++};
++
++/*
++ * The VIM3 on-board  MCU can mux the PCIe/USB3.0 shared differential
++ * lines using a FUSB340TMX USB 3.1 SuperSpeed Data Switch between
++ * an USB3.0 Type A connector and a M.2 Key M slot.
++ * The PHY driving these differential lines is shared between
++ * the USB3.0 controller and the PCIe Controller, thus only
++ * a single controller can use it.
++ * If the MCU is configured to mux the PCIe/USB3.0 differential lines
++ * to the M.2 Key M slot, uncomment the following block to disable
++ * USB3.0 from the USB Complex and enable the PCIe controller.
++ * The End User is not expected to uncomment the following except for
++ * testing purposes, but instead rely on the firmware/bootloader to
++ * update these nodes accordingly if PCIe mode is selected by the MCU.
++ */
++/*
++&pcie {
++	status = "okay";
++};
++
++&usb {
++	phys = <&usb2_phy0>, <&usb2_phy1>;
++	phy-names = "usb2-phy0", "usb2-phy1";
++};
++ */
++
++&sd_emmc_a {
++	sd-uhs-sdr50;
++};
++
++&audio_controller {
++	tdmb: tdm {
++		compatible = "amlogic, sm1-snd-tdmb";
++		#sound-dai-cells = <0>;
++		dai-tdm-lane-slot-mask-in = <0 1 0 0>;
++		dai-tdm-lane-slot-mask-out = <1 0 0 0>;
++		dai-tdm-clk-sel = <1>;
++
++
++
++		mclk_pad = <0>;  /* 0: mclk_0; 1: mclk_1 */
++
++		/*
++		 * 0: tdmout_a;
++		 * 1: tdmout_b;
++		 * 2: tdmout_c;
++		 * 3: spdifout;
++		 * 4: spdifout_b;
++		 */
++		samesource_sel = <3>;
++		i2s2hdmi = <1>;
++		/*enable default mclk(12.288M), before extern codec start*/
++		start_clk_enable = <1>;
++
++		/*tdm clk tuning enable*/
++		clk_tuning_enable = <1>;
++
++		status = "okay";
++	};
++};
+\ No newline at end of file
+diff -ruN a/arch/arm64/boot/dts/amlogic/meson-sm1.dtsi b/arch/arm64/boot/dts/amlogic/meson-sm1.dtsi
+--- a/arch/arm64/boot/dts/amlogic/meson-sm1.dtsi	2022-02-10 17:36:11.058056104 +0300
++++ b/arch/arm64/boot/dts/amlogic/meson-sm1.dtsi	2022-01-11 18:19:42.743445105 +0300
+@@ -154,6 +154,18 @@
+ 			opp-hz = /bits/ 64 <1908000000>;
+ 			opp-microvolt = <950000>;
+ 		};
++		opp-2016000000 {
++			opp-hz = /bits/ 64 <2016000000>;
++			opp-microvolt = <1010000>;
++		};
++		opp-2100000000 {
++			opp-hz = /bits/ 64 <2100000000>;
++			opp-microvolt = <1030000>;
++		};
++		opp-2208000000 {
++			opp-hz = /bits/ 64 <2208000000>;
++			opp-microvolt = <1040000>;
++		};
+ 	};
+ };
+ 
+@@ -164,6 +176,7 @@
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+ 		ranges = <0x0 0x0 0x0 0x60000 0x0 0x1000>;
++		status = "disabled";
+ 
+ 		clkc_audio: clock-controller@0 {
+ 			status = "disabled";
