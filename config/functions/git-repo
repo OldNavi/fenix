@@ -22,7 +22,7 @@ GIT_UPDATE_IGNORE_NOTIFY="[TIPS] same can solve this via \`NO_GIT_UPDATE=1 make\
 
 update_git_repo() {
 
-    git branch --show-current | grep -q dev && NO_GIT_UPDATE=1
+	git branch | grep "^*" | grep -q dev && NO_GIT_UPDATE=1
 
     [ "$NO_GIT_UPDATE" ] && {
 	info_msg "Git update was disabled by NO_GIT_UPDATE"
@@ -60,8 +60,7 @@ update_git_repo() {
 			git checkout $2
         fi
 
-        git pull origin $2
-		git pull origin --tags
+        git pull origin $2 --tags -f
 		[ "$NO_ASK" ] || \
 		if [ $HAVE_MODIFYCATIONS -ne 0 ]; then
 			echo -e "Press $YELLOW<Ctrl-C>$ENDCOLOR to abort compilation, $YELLOW<Enter>$ENDCOLOR to ignore and continue"
